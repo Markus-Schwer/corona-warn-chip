@@ -19,6 +19,7 @@ uint32_t value = 0;
 #define SERVICE_UUID        "e5d49329-fd4e-4506-89a3-79f2b29ce108"
 #define CHARACTERISTIC_UUID "28ea530d-2663-44fd-a58b-9cde851efebe"
 
+// Verbindung abfragen
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
@@ -28,6 +29,20 @@ class MyServerCallbacks: public BLEServerCallbacks {
       deviceConnected = false;
     }
 };
+
+// Auslesen von Charakteristiken
+class MyCallbacks: public BLECharacteristicsCallbacks {
+  void onWrite(BLECharacteristic* pCharacteristic) {
+    std::string rxValue = pCharacteristic->getValue();
+    if (rxValue.length() > 0) {
+      Serial.print("Received value: ");
+      for (int i = 0; i < rxValue.length(); i++) {
+        Serial.print(rxValue[i]);
+      }
+      Serial.print("******");
+    }
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -49,11 +64,13 @@ void setup() {
                                          BLECharacteristic::PROPERTY_READ   |
                                          BLECharacteristic::PROPERTY_WRITE  |
                                          BLECharacteristic::PROPERTY_NOTIFY |
-                                         BLECharacteristic::PROPERTY_INDICATE
+                                         BLECharacteristic::PROPERTY_INDICATE |
+                                         CHARACTERISTIC_UUID_RX
                                        );
   
   pCharacteristic->addDescriptor(new BLE2902());
   //pCharacteristic->setValue("Hello here ist BLE broadcast");
+  pCharacteristic->setCallbacks(new MyCallbacks());
 
   // Service starten
   pService->start(); 
