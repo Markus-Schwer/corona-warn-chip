@@ -31,7 +31,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
 };
 
 // Auslesen von Charakteristiken
-class MyCallbacks: public BLECharacteristicsCallbacks {
+class MyCallbacks: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* pCharacteristic) {
     std::string rxValue = pCharacteristic->getValue();
     if (rxValue.length() > 0) {
@@ -42,7 +42,7 @@ class MyCallbacks: public BLECharacteristicsCallbacks {
       Serial.print("******");
     }
   }
-}
+};
 
 void setup() {
   Serial.begin(115200);
@@ -64,8 +64,7 @@ void setup() {
                                          BLECharacteristic::PROPERTY_READ   |
                                          BLECharacteristic::PROPERTY_WRITE  |
                                          BLECharacteristic::PROPERTY_NOTIFY |
-                                         BLECharacteristic::PROPERTY_INDICATE |
-                                         CHARACTERISTIC_UUID_RX
+                                         BLECharacteristic::PROPERTY_INDICATE
                                        );
   
   pCharacteristic->addDescriptor(new BLE2902());
