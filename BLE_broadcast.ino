@@ -1,25 +1,40 @@
 /*
- * Titel: Bluetooth Low Energy Broadcast
- * Beschreibung:
- * Letzte Änderung: 15.08.2020
- * Autor: Lukas
- */
+    Video: https://www.youtube.com/watch?v=oCMOYS71NIU
+    Based on Neil Kolban example for IDF: https://github.com/nkolban/esp32-snippets/blob/master/cpp_utils/tests/BLE%20Tests/SampleNotify.cpp
+    Ported to Arduino ESP32 by Evandro Copercini
 
+   Create a BLE server that, once we receive a connection, will send periodic notifications.
+   The service advertises itself as: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
+   Has a characteristic of: 6E400002-B5A3-F393-E0A9-E50E24DCCA9E - used for receiving data with "WRITE" 
+   Has a characteristic of: 6E400003-B5A3-F393-E0A9-E50E24DCCA9E - used to send data with  "NOTIFY"
+
+   The design of creating the BLE server is:
+   1. Create a BLE Server
+   2. Create a BLE Service
+   3. Create a BLE Characteristic on the Service
+   4. Create a BLE Descriptor on the characteristic
+   5. Start the service.
+   6. Start advertising.
+
+   In this example rxValue is the data received (only accessible inside that function).
+   And txValue is the data to be sent, in this example just a byte incremented every second. 
+*/
 #include <BLEDevice.h>
-#include <BLEUtils.h>
 #include <BLEServer.h>
+#include <BLEUtils.h>
 #include <BLE2902.h>
 
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
+BLECharacteristic *pCharacteristic;
 bool deviceConnected = false;
-bool oldDeviceConnected = false;
-uint32_t value = 0;
+float txValue = 0;
 
-#define SERVICE_UUID        "e5d49329-fd4e-4506-89a3-79f2b29ce108"
-#define CHARACTERISTIC_UUID "28ea530d-2663-44fd-a58b-9cde851efebe"
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
 
-// Verbindung abfragen
+#define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
+#define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
+#define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
+
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
@@ -30,79 +45,72 @@ class MyServerCallbacks: public BLEServerCallbacks {
     }
 };
 
-// Auslesen von Charakteristiken
 class MyCallbacks: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic* pCharacteristic) {
-    std::string rxValue = pCharacteristic->getValue();
-    if (rxValue.length() > 0) {
-      Serial.print("Received value: ");
-      for (int i = 0; i < rxValue.length(); i++) {
-        Serial.print(rxValue[i]);
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string rxValue = pCharacteristic->getValue();
+
+      if (rxValue.length() > 0) {
+        Serial.println("*********");
+        Serial.print("Received Value: ");
+
+        for (int i = 0; i < rxValue.length(); i++) {
+          Serial.print(rxValue[i]);
+        }
+
+        Serial.println();
+        Serial.println("*********");
       }
-      Serial.print("******");
     }
-  }
 };
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("BLE Server gestartet!");
 
-  // BLE initialisieren
-  BLEDevice::init("BLE broadcast"); 
+  //pinMode(LED, OUTPUT);
 
-  // BLE Server erstellen
-  BLEServer *pServer = BLEDevice::createServer(); 
+  // Create the BLE Device
+  BLEDevice::init("BLE broadcast"); // Give it a name
+
+  // Create the BLE Server
+  BLEServer *pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
-  // BLE Server Service UUID zuweisen
-  BLEService *pService = pServer->createService(SERVICE_UUID); 
+  // Create the BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
 
-  // BLE Charakteristiken erstellen
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic( 
-                                         CHARACTERISTIC_UUID,
-                                         BLECharacteristic::PROPERTY_READ   |
-                                         BLECharacteristic::PROPERTY_WRITE  |
-                                         BLECharacteristic::PROPERTY_NOTIFY |
-                                         BLECharacteristic::PROPERTY_INDICATE
-                                       );
-  
+  // Create a BLE Characteristic
+  pCharacteristic = pService->createCharacteristic(
+                      CHARACTERISTIC_UUID_TX,
+                      BLECharacteristic::PROPERTY_NOTIFY
+                    );
+                      
   pCharacteristic->addDescriptor(new BLE2902());
-  //pCharacteristic->setValue("Hello here ist BLE broadcast");
+
+  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID_RX,
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+
   pCharacteristic->setCallbacks(new MyCallbacks());
 
-  // Service starten
-  pService->start(); 
+  // Start the service
+  pService->start();
 
-  // Advertising starten
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising(); 
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  //pAdvertising->setMinPreferred(0x06);
-  //pAdvertising->setMinPreferred(0x06);
-  BLEDevice::startAdvertising();
-  Serial.println("Auf Client-Verbindung warten ...");
+  // Start advertising
+  pServer->getAdvertising()->start();
+  Serial.println("Waiting a client connection to notify...");
 }
 
 void loop() {
-   // Wert-Änderung benachrichtigen
-    if (deviceConnected) {
-        pCharacteristic->setValue((uint8_t*)&value, 4);
-        pCharacteristic->notify();
-        value++;
-        delay(3); // bluetooth stack will go into congestion, if too many packets are sent, in 6 hours test i was able to go as low as 3ms
-    }
-    // disconnecting
-    if (!deviceConnected && oldDeviceConnected) {
-        delay(500); // give the bluetooth stack the chance to get things ready
-        pServer->startAdvertising(); // restart advertising
-        Serial.println("start advertising");
-        oldDeviceConnected = deviceConnected;
-    }
-    // connecting
-    if (deviceConnected && !oldDeviceConnected) {
-        // do stuff here on connecting
-        oldDeviceConnected = deviceConnected;
-    }
-
+  if (deviceConnected) {    
+//    pCharacteristic->setValue(&txValue, 1); // To send the integer value
+//    pCharacteristic->setValue("Hello!"); // Sending a test message
+    pCharacteristic->setValue("Hello World!");
+    
+    pCharacteristic->notify(); // Send the value to the app!
+    Serial.print("*** Sent Value: ");
+    //Serial.print(txString);
+    Serial.println(" ***");
+  }
+  delay(1000);
 }
