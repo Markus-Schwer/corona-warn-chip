@@ -45,7 +45,7 @@ void generateRPIK(byte *rpik, byte *tek)
 
 void generateRPI(byte *rpi, byte *rpik, uint32_t enIntervalNumber)
 {
-  byte padded_data[] = "EN-RPI";
+  byte padded_data[16] = "EN-RPI";
   padded_data[12] = (enIntervalNumber & 0x000000ff);
   padded_data[13] = (enIntervalNumber & 0x0000ff00) >> 8;
   padded_data[14] = (enIntervalNumber & 0x00ff0000) >> 16;

@@ -51,6 +51,19 @@ void setup()
   SerialMon.println(timestamp);
 
   cryptoInit();
+
+  uint32_t enIntervalNumber = calcENIntervalNumber(timestamp);
+
+  byte tek[16];
+  byte rpik[16];
+  byte rpi[16];
+  byte aemk[16];
+  byte aem[16];
+  generateTEK(tek);
+  generateRPIK(rpik, tek);
+  generateRPI(rpi, rpik, enIntervalNumber);
+  generateAEMK(aemk, tek);
+  generateAEM(aem, aemk, rpi, 80);
 }
 
 void loop()
