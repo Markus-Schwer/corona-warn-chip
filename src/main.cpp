@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <TimeLib.h>
 #include "crypto.h"
+#include "BLE_listener.h"
 
 // enable logging for tinyGSM
 // #define GSM_LOGGING
@@ -64,8 +65,11 @@ void setup()
   generateRPI(rpi, rpik, enIntervalNumber);
   generateAEMK(aemk, tek);
   generateAEM(aem, aemk, rpi, 80);
+
+  initalizeBLE();
 }
 
 void loop()
 {
+  scanAndReadBLE();
 }
