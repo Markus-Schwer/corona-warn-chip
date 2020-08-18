@@ -2,6 +2,7 @@
 #include <TimeLib.h>
 #include "crypto.h"
 #include "BLE_listener.h"
+#include "BLE_broadcast.h"
 
 // enable logging for tinyGSM
 // #define GSM_LOGGING
@@ -67,9 +68,10 @@ void setup()
   generateAEM(aem, aemk, rpi, 80);
 
   initalizeBLE();
+  create_Server(); // advertised value übergeben! (cryptocode)
 }
 
 void loop()
 {
-  scanAndReadBLE();
+  updateCharacteristic();
 }
