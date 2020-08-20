@@ -1,6 +1,9 @@
 #include <Arduino.h>
-#include <TimeLib.h>
+#include <sys/time.h>
 #include "crypto.h"
+#include "bluetooth.h"
+#include "bluetooth_scan.h"
+#include "bluetooth_broadcast.h"
 
 // enable logging for tinyGSM
 // #define GSM_LOGGING
@@ -9,7 +12,7 @@
 
 #ifdef GSM_LOGGING
 #include <StreamDebugger.h>
-StreamDebugger debugger(SerialAT, SerialMon);
+StreamDebugger debugger(SerialAT, Serial);
 TinyGsm modem(debugger);
 #else
 TinyGsm modem(SerialAT);
@@ -25,10 +28,12 @@ const char gprsPass[] = "";
 
 TinyGsmClient client(modem);
 
+static byte tek[16];
+
 void setup()
 {
   // Set console baud rate
-  SerialMon.begin(9600);
+  Serial.begin(9600);
 
   initializeGsmModem(modem, GSM_PIN);
 
@@ -40,32 +45,43 @@ void setup()
   }
 
   time_t unix_epoch_time = 0;
-  getGsmTime(modem, &unix_epoch_time);
+  while (true)
+  {
+    if (getGsmTime(modem, &unix_epoch_time))
+      break;
+    initializeGsmModem(modem, GSM_PIN, true);
 
-  setTime(unix_epoch_time);
+    while (true)
+    {
+      if (getGprsConnection(modem, apn, gprsUser, gprsUser))
+        break;
+      delay(10000);
+    }
+
+    delay(10000);
+  }
+
+  struct timeval gsmTime = {.tv_sec = unix_epoch_time};
+  settimeofday(&gsmTime, NULL);
 
   modem.gprsDisconnect();
-  SerialMon.println(F("GPRS disconnected"));
-
-  time_t timestamp = now();
-  SerialMon.println(timestamp);
+  Serial.println(F("GPRS disconnected"));
 
   cryptoInit();
 
-  uint32_t enIntervalNumber = calcENIntervalNumber(timestamp);
+  bleInit();
+  scanInit();
+  startAdvertising();
 
   byte tek[16];
-  byte rpik[16];
-  byte rpi[16];
-  byte aemk[16];
-  byte aem[16];
   generateTEK(tek);
-  generateRPIK(rpik, tek);
-  generateRPI(rpi, rpik, enIntervalNumber);
-  generateAEMK(aemk, tek);
-  generateAEM(aem, aemk, rpi, 80);
 }
 
 void loop()
 {
+  time_t timestamp = time(NULL);
+  uint32_t enIntervalNumber = calcENIntervalNumber(timestamp);
+  setAdvertisePayload(enIntervalNumber, tek);
+  startScanning(5);
+  delay(10000);
 }
